@@ -7,6 +7,7 @@ import java.io.PrintWriter;
 import java.net.Socket;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.logging.Logger;
 
 public class ClientProcessing extends Thread implements Runnable {
@@ -16,6 +17,8 @@ public class ClientProcessing extends Thread implements Runnable {
     private final Logger logger = Logger.getLogger(Thread.currentThread().getName());
     private final SusQueue<String> queue;
     private int partitionLen;
+
+    private int startPartIx;
 
     public ClientProcessing(Socket socket, List<ClientProcessing> clients, SusQueue<String> queue) {
         this.socket = socket;
@@ -30,6 +33,10 @@ public class ClientProcessing extends Thread implements Runnable {
             var d = this.queue.getCapacity() % this.clients.size();
             if (d != 0) this.partitionLen += d;
         }
+        if (!this.clients.isEmpty()) {
+            var tmp = new AtomicInteger(this.clients.get(0).partitionLen);
+            this.clients.forEach(c -> c.startPartIx += tmp.getAndAdd(c.partitionLen));
+        }
     }
 
     @Override
@@ -39,8 +46,6 @@ public class ClientProcessing extends Thread implements Runnable {
             var in = new BufferedReader(new InputStreamReader(this.socket.getInputStream()));
             this.out = new PrintWriter(this.socket.getOutputStream(), true);
             var num = 0;
-            var indexes = new LinkedList<Integer>();
-            //TODO: make clients listen to their parts using `partitionLen`
             while (true) {
                 var outStr = in.readLine();
                 if (outStr == null || outStr.equalsIgnoreCase("exit")) break;
