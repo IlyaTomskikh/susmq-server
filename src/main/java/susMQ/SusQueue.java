@@ -326,7 +326,7 @@ public class SusQueue<T> implements BlockingQueue<T> {
     }
 
     @Override
-    public Iterator iterator() {
+    public Iterator<T> iterator() {
         return queue.iterator();
     }
 

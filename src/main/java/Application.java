@@ -11,14 +11,12 @@ public class Application {
         var clients = new LinkedList<ClientProcessing>();
         var capacity = 3;
         var queue = new SusQueue<String>(capacity);
-        var port = 5000;
-        var timeout = 0;
-        try(var serverSocket = new ServerSocket(port, timeout)) {
-            while (true) {
-                var socket = serverSocket.accept();
-                clients.add(new ClientProcessing(socket, clients, queue));
-                clients.getLast().start();
-            }
+        var producersPort = 1234;
+        var consumersPort = 4321;
+        try(var serverSocket = new ServerSocket(producersPort)) {
+            logger.info("Server is ready");
+            var client = serverSocket.accept();
+
         } catch (IOException e) {
             logger.info("I/O exception occurred");
         }

@@ -1,40 +1,71 @@
 import susMQ.SusQueue;
 
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStreamReader;
-import java.io.PrintWriter;
+import java.io.*;
 import java.net.Socket;
+import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.logging.Logger;
 
 public class OneClient extends Thread implements Runnable {
+    private static List<OneClient> consumers;
+    private static List<OneClient> producers;
     private final Socket socket;
-    private PrintWriter out;
     private final Logger logger = Logger.getLogger(Thread.currentThread().getName());
-    private final SusQueue<String> queue;
-    private boolean ready;
+    private static SusQueue<String> queue;
+    private final AtomicBoolean ready = new AtomicBoolean();
+    private final DataInputStream dis;
+    private final DataOutputStream dos;
+    private static AtomicInteger consumerCounter = new AtomicInteger();
 
-    public OneClient(Socket socket, SusQueue<String> queue) {
+    private static void send(String msg) {
+        if (!OneClient.consumers.isEmpty()) {
+            var cl = OneClient.consumers.get(OneClient.consumerCounter.getAndIncrement() % OneClient.consumers.size());
+            try {
+                cl.dos.writeUTF(msg);
+                cl.dos.flush();
+            } catch (IOException e) {
+                cl.logger.info("Couldn't send the message");
+                throw new RuntimeException(e);
+            }
+        }
+    }
+
+    public OneClient(Socket socket, SusQueue<String> queue, char clientType) {
+        DataInputStream dis1;
+        DataOutputStream dos1;
         this.socket = socket;
-        this.queue = queue;
-        this.ready = true;
+        OneClient.queue = queue;
+        this.ready.set(true);
+        try {
+            dis1 = new DataInputStream(socket.getInputStream());
+            dos1 = new DataOutputStream(socket.getOutputStream());
+        } catch (IOException e) {
+            this.ready.set(false);
+            dis1 = null;
+            dos1 = null;
+            logger.info("Couldn't connect the client");
+        }
+        this.dis = dis1;
+        this.dos = dos1;
+        if (clientType == 'c') OneClient.consumers.add(this);
+        else if (clientType == 'p') OneClient.producers.add(this);
+        else this.logger.info("Client's type is not `c` or `p`");
     }
 
     @Override
     public void run() {
         try {
-            var in = new BufferedReader(new InputStreamReader(this.socket.getInputStream()));
-            this.out = new PrintWriter(this.socket.getOutputStream(), true);
-            while (true) {
-                var outStr = in.readLine();
-                if (outStr == null || outStr.equalsIgnoreCase("exit")) break;
-                this.queue.add(outStr);
-                this.out.println(outStr);
-                this.logger.info("Server got " + outStr);
+            while (!this.socket.isClosed()) {
+                var msg = this.dis.readUTF();
+                this.logger.info("Server got: " + msg);
+                send(msg);
             }
         } catch (IOException e) {
-            this.logger.info("I/O exception occurred on 'try{...}' in 'run()'");
-        } finally {
+            e.printStackTrace();
+//            this.logger.info("I/O exception occurred on 'try{...}' in 'run()'");
+        } /*finally {
             this.out.close();
             try {
                 this.socket.close();
@@ -42,6 +73,6 @@ public class OneClient extends Thread implements Runnable {
                 this.logger.info("I/O exception occurred while closing");
             }
             this.interrupt();
-        }
+        }*/
     }
 }
