@@ -2,8 +2,7 @@ import susMQ.SusQueue;
 
 import java.io.*;
 import java.net.Socket;
-import java.util.LinkedList;
-import java.util.List;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.logging.Logger;
@@ -78,28 +77,61 @@ public class OneClient extends Thread implements Runnable {
             return;
         }
         try {
-            while (!this.socket.isClosed()) {
+            while (!this.socket.isClosed() && !this.socket.isOutputShutdown() && this.socket.isConnected()) {
                 var msg = this.dis.readUTF();
                 this.logger.info("Server got: " + msg);
                 OneClient.queue.add(msg);
                 send();
                 Thread.sleep(10);
             }
+        } catch (EOFException e) {
+            logger.info("Client has disconnected");
+//            try {
+//                this.socket.close();
+//            } catch (IOException ex) {
+//                logger.info("Couldn't close the connection");
+//            }
         } catch (IOException | InterruptedException e) {
-            e.printStackTrace();
-//            this.logger.info("I/O exception occurred on 'try{...}' in 'run()'");
-        } /*finally {
-            this.out.close();
-            try {
-                this.socket.close();
-            } catch (IOException e) {
-                this.logger.info("I/O exception occurred while closing");
-            }
-            this.interrupt();
-        }*/
+//            e.printStackTrace();
+            this.logger.info("Exception occurred on 'try{...}' in 'run()'");
+        } finally {
+            producers.get(producers.indexOf(this)).close();
+        }
     }
 
     private boolean isReady() {
         return this.ready.get();
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof OneClient oneClient)) return false;
+
+        if (!Objects.equals(socket, oneClient.socket)) return false;
+        if (!logger.equals(oneClient.logger)) return false;
+        if (!ready.equals(oneClient.ready)) return false;
+        if (!Objects.equals(dis, oneClient.dis)) return false;
+        return Objects.equals(dos, oneClient.dos);
+    }
+
+    @Override
+    public int hashCode() {
+        int result = socket != null ? socket.hashCode() : 0;
+        result = 31 * result + logger.hashCode();
+        result = 31 * result + ready.hashCode();
+        result = 31 * result + (dis != null ? dis.hashCode() : 0);
+        result = 31 * result + (dos != null ? dos.hashCode() : 0);
+        return result;
+    }
+
+    private void close() {
+        try {
+            this.socket.close();
+            this.dis.close();
+            this.dos.close();
+        } catch (IOException e) {
+            logger.info("Connections are already closed");
+        }
     }
 }

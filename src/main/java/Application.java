@@ -16,7 +16,7 @@ public class Application {
         var queue = new SusQueue<String>(capacity);
         var producersPort = 1234;
         var consumersPort = 4321;
-//        service.execute(() -> {
+        service.execute(() -> {
             while (true) {
                 try (var serverSocket = new ServerSocket(producersPort,0)) {
                     logger.info("Waiting for producers to connect");
@@ -29,7 +29,7 @@ public class Application {
                     logger.info("I/O exception occurred");
                 }
             }
-//        });
+        });
 //        service.execute(() -> {
 //            while (true) {
 //                try (var serverSocket = new ServerSocket(consumersPort)) {
