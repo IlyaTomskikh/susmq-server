@@ -33,6 +33,12 @@ public class OneClient extends Thread implements Runnable {
     }
 
     public OneClient(Socket socket, SusQueue<String> queue, char clientType) {
+        if (clientType != 'c' || clientType != 'p') {
+            this.socket = null;
+            this.dis = null;
+            this.dos = null;
+            return;
+        }
         DataInputStream dis1;
         DataOutputStream dos1;
         this.socket = socket;
@@ -51,7 +57,6 @@ public class OneClient extends Thread implements Runnable {
         this.dos = dos1;
         if (clientType == 'c') OneClient.consumers.add(this);
         else if (clientType == 'p') OneClient.producers.add(this);
-        else this.logger.info("Client's type is not `c` or `p`");
     }
 
     @Override
