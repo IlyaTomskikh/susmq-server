@@ -7,7 +7,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.logging.Logger;
 
-public class OneClient extends Thread implements Runnable {
+public class OneClient extends Thread implements Runnable, Closeable {
     private static final List<OneClient> consumers = new LinkedList<>();
     private static final List<OneClient> producers = new LinkedList<>();
     private final Socket socket;
@@ -17,6 +17,7 @@ public class OneClient extends Thread implements Runnable {
     private final DataInputStream dis;
     private final DataOutputStream dos;
     private static final AtomicInteger consumerCounter = new AtomicInteger();
+    private final char type;
 
     private static void send() {
         var cons = OneClient.consumers;
@@ -35,6 +36,7 @@ public class OneClient extends Thread implements Runnable {
     }
 
     public OneClient(Socket socket, SusQueue<String> queue, char clientType) {
+        this.type = clientType;
         if (clientType != 'c' && clientType != 'p') {
             logger.info("Incorrect type");
             this.socket = null;
@@ -77,7 +79,7 @@ public class OneClient extends Thread implements Runnable {
             return;
         }
         try {
-            while (!this.socket.isClosed() && !this.socket.isOutputShutdown() && this.socket.isConnected()) {
+            while (!this.socket.isOutputShutdown() && !this.socket.isClosed() && !this.socket.isOutputShutdown() && this.socket.isConnected()) {
                 var msg = this.dis.readUTF();
                 this.logger.info("Server got: " + msg);
                 OneClient.queue.add(msg);
@@ -91,8 +93,8 @@ public class OneClient extends Thread implements Runnable {
         } finally {
 
             try {
-                producers.get(producers.indexOf(this)).close();
-                consumers.get(consumers.indexOf(this)).close();
+                if (this.type == 'p') producers.get(producers.indexOf(this)).close();
+                else consumers.get(consumers.indexOf(this)).close();
             } catch (IndexOutOfBoundsException ignored) {}
 
         }
@@ -126,15 +128,40 @@ public class OneClient extends Thread implements Runnable {
         return result;
     }
 
-    private void close() {
-        try {
-            this.dis.close();
-            this.dos.close();
-            this.socket.close();
-            producers.remove(this);
-            consumers.remove(this);
-        } catch (IOException e) {
-            logger.info("Connections are already closed");
+    @Override
+    public void close() {
+
+        if (this.type == 'c') {
+            try {
+                this.dos.close();
+                if (!this.socket.isClosed()) {
+                    this.socket.getOutputStream().close();
+                    this.socket.shutdownOutput();
+                }
+                consumers.remove(this);
+            } catch (IOException e) {
+                this.logger.info(e.getMessage());
+            }
         }
+
+        if (this.type == 'p') {
+            try {
+                this.dis.close();
+                if (!this.socket.isClosed()) {
+                    this.socket.getInputStream().close();
+                    this.socket.shutdownInput();
+                }
+                producers.remove(this);
+            } catch (IOException e) {
+                this.logger.info(e.getMessage());
+            }
+        }
+
+        try {
+            if (!this.socket.isClosed()) this.socket.close();
+        } catch (IOException e) {
+            this.logger.info(e.getMessage());
+        }
+        if (this.isAlive() || !interrupted()) this.interrupt();
     }
 }

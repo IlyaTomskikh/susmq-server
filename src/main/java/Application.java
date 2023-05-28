@@ -55,13 +55,20 @@ public class Application {
 
     public static void main(String[] args) {
         ExecutorService service = Executors.newFixedThreadPool(2);
-        try {
-            Thread.sleep(60000);
-        } catch (InterruptedException e) {
-            throw new RuntimeException(e);
-        }
+//        try {
+//            Thread.sleep(60000);
+//        } catch (InterruptedException e) {
+//            throw new RuntimeException(e);
+//        }
+        System.gc();
         logger.info("Free space on start " + currentRuntime.freeMemory());
         service.execute(Application::generateProducer);
         service.execute(Application::generateConsumer);
+        while (true) {
+            try {
+                Thread.sleep(10000);
+                logger.info(String.valueOf(currentRuntime.freeMemory()));
+            } catch (InterruptedException ignored) {}
+        }
     }
 }
