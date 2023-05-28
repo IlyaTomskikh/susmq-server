@@ -3,6 +3,7 @@ package susMQ;
 import java.util.*;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
@@ -10,14 +11,14 @@ import java.util.concurrent.locks.ReentrantLock;
 @SuppressWarnings("unchecked")
 public class SusQueue<T> implements BlockingQueue<T> {
 
-    private final int capacity;
+    private final AtomicInteger capacity = new AtomicInteger();
     private final Queue<T> queue = new LinkedList<>();
     private final Lock lock = new ReentrantLock();
     private final Condition notFull = lock.newCondition();
     private final Condition notEmpty = lock.newCondition();
 
     public SusQueue(int capacity) {
-        this.capacity = capacity;
+        this.capacity.set(capacity);
     }
 
     /**
@@ -143,7 +144,7 @@ public class SusQueue<T> implements BlockingQueue<T> {
                                 ClassCastException,   NullPointerException,     IllegalMonitorStateException {
         lock.lock();
         try {
-            while (queue.size() == capacity) notFull.await();
+            while (queue.size() == capacity.get()) notFull.await();
             queue.add(t);
             notEmpty.signal();
         } finally {
@@ -192,7 +193,7 @@ public class SusQueue<T> implements BlockingQueue<T> {
      */
     @Override
     public int remainingCapacity() {
-        return capacity - queue.size();
+        return capacity.get() - queue.size();
     }
 
     /**
@@ -218,7 +219,7 @@ public class SusQueue<T> implements BlockingQueue<T> {
     /**
      * Adds all the elements in the specified collection to this collection (optional operation). The behavior of this operation is undefined if the specified collection is modified while the operation is in progress. (This implies that the behavior of this call is undefined if the specified collection is this collection, and this collection is nonempty.)
      * @param collection the collection containing elements to be added to this collection
-     * @returntrue if this collection changed as a result of the call
+     * @return true if this collection changed as a result of the call
      */
     @Override
     public boolean addAll(Collection collection) {
@@ -312,7 +313,7 @@ public class SusQueue<T> implements BlockingQueue<T> {
     }
 
     public int getCapacity() {
-        return this.capacity;
+        return this.capacity.get();
     }
 
     @Override

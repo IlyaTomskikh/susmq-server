@@ -28,7 +28,7 @@ public class OneClient extends Thread implements Runnable {
                     cl.dos.writeUTF(queue.poll());
                     cl.dos.flush();
                 } catch (IOException e) {
-                    cl.logger.info("Couldn't send the message");
+                    cl.logger.info("Couldn't send the message: " + e.getMessage());
                 }
             }
         }
@@ -86,17 +86,18 @@ public class OneClient extends Thread implements Runnable {
             }
         } catch (EOFException e) {
             logger.info("Client has disconnected");
-//            try {
-//                this.socket.close();
-//            } catch (IOException ex) {
-//                logger.info("Couldn't close the connection");
-//            }
         } catch (IOException | InterruptedException e) {
-//            e.printStackTrace();
             this.logger.info("Exception occurred on 'try{...}' in 'run()'");
         } finally {
-            producers.get(producers.indexOf(this)).close();
+
+            try {
+                producers.get(producers.indexOf(this)).close();
+                consumers.get(consumers.indexOf(this)).close();
+            } catch (IndexOutOfBoundsException ignored) {}
+
         }
+        var runtime = Runtime.getRuntime();
+        logger.info("Free space for now after run() " + runtime.freeMemory());
     }
 
     private boolean isReady() {
@@ -127,9 +128,11 @@ public class OneClient extends Thread implements Runnable {
 
     private void close() {
         try {
-            this.socket.close();
             this.dis.close();
             this.dos.close();
+            this.socket.close();
+            producers.remove(this);
+            consumers.remove(this);
         } catch (IOException e) {
             logger.info("Connections are already closed");
         }
